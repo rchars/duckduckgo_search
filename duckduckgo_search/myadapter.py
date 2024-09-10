@@ -1,8 +1,8 @@
 from functools import wraps
-
 import inspect
+import pathlib
 import click
-import copy
+import ast
 
 from . import cli
 from .mycli import (
@@ -10,32 +10,60 @@ from .mycli import (
     my_chat as my_chat_impl
 )
 
-def extract_click_option_decorators(command):
-    decorators = []
-    if hasattr(command, 'params'):
-        for param in command.params:
-            if isinstance(param, click.Option):
-                decorators.append(param)
-    return decorators
+class HandleDecorators:
+    original_cli_path = pathlib.Path(__file__).parent / pathlib.Path('cli.py')
+    original_cli_code = original_cli_path.read_text()
 
-def apply_decorators_to_custom_function(original_command, custom_function):
-    decorators = extract_click_option_decorators(original_command)
-    @click.command(context_settings=original_command.context_settings)
-    @wraps(custom_function)
-    def wrapped_function(*args, **kwargs): return custom_function(*args, **kwargs)
-    decorator_signature = inspect.signature(click.Option.__init__)
-    for decorator in reversed(decorators):
-        decorator_copy = copy.deepcopy(decorator)
-        opts = decorator_copy.opts
-        valid_kwargs = {
-            param_name: getattr(decorator_copy, param_name)
-            for param_name in decorator_signature.parameters
-            if hasattr(decorator_copy, param_name)
-        }
-        valid_kwargs['default'] = decorator.default
-        valid_kwargs['required'] = decorator.required
-        wrapped_function = click.option(*opts, **valid_kwargs)(wrapped_function)
-    return wrapped_function
+    def __init__(self, original_function, custom_function):
+        self.original_function = original_function
+        self.custom_function = custom_function
+
+    def extract_click_option_decorators(self):
+        decorators = []
+        if hasattr(self.original_function, 'params'):
+            for param in self.original_function.params:
+                if isinstance(param, click.Option):
+                    decorators.append(param)
+        return decorators
+
+    def get_decorator_parameter_names(self, opts):
+        tree = ast.parse(self.original_cli_code)
+        decorator_params = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == self.original_function.name:
+                for decorator in node.decorator_list:
+                    if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
+                        if decorator.func.attr == 'option':
+                            decorator_opts = [arg.s for arg in decorator.args if isinstance(arg, ast.Str)]
+                            if opts == decorator_opts:
+                                # Extract parameter names
+                                for kwarg in decorator.keywords:
+                                    if isinstance(kwarg.value, ast.Constant):
+                                        decorator_params.append(kwarg.arg)
+                                    elif isinstance(kwarg.value, ast.Str):
+                                        decorator_params.append(kwarg.arg)
+                                    elif isinstance(kwarg.value, ast.Num):
+                                        decorator_params.append(kwarg.arg)
+        return decorator_params
+
+    def apply_decorators_to_custom_function(self):
+        decorators = self.extract_click_option_decorators()
+        @click.command(context_settings=self.original_function.context_settings)
+        @wraps(self.custom_function)
+        def wrapped_function(*args, **kwargs):
+            return self.custom_function(*args, **kwargs)
+
+        for decorator in reversed(decorators):
+            opts = decorator.opts
+            param_names = self.get_decorator_parameter_names(opts)
+            valid_kwargs = {
+                param_name: getattr(decorator, param_name)
+                for param_name in param_names
+                if hasattr(decorator, param_name)
+            }
+            wrapped_function = click.option(*opts, **valid_kwargs)(wrapped_function)
+        return wrapped_function
 
 @click.group()
 def cli_group():
@@ -48,9 +76,12 @@ def add_original_commands():
             cli_group.add_command(attr, attr_name)
 
 def add_custom_commands():
-    custom_images_command = apply_decorators_to_custom_function(cli.images, my_images_impl)
+    images_handler = HandleDecorators(cli.images, my_images_impl)
+    custom_images_command = images_handler.apply_decorators_to_custom_function()
     cli_group.add_command(custom_images_command, 'myimages')
-    custom_chat_command = apply_decorators_to_custom_function(cli.chat, my_chat_impl)
+
+    chat_handler = HandleDecorators(cli.chat, my_chat_impl)
+    custom_chat_command = chat_handler.apply_decorators_to_custom_function()
     cli_group.add_command(custom_chat_command, 'mychat')
 
 def main():

@@ -35,6 +35,7 @@ def setup_kwargs(func, *args, **kwargs):
     return argument_bundle
 
 @click.option('--del-duplicates', is_flag=True, default=False)
+# @click.option('--remove-metadata', is_flag=True, default=False)
 @click.option('--folder', required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True))
 def my_images(*args, **kwargs):
     argument_bundle = setup_kwargs(DDGS.images, *args, **kwargs)
@@ -45,6 +46,7 @@ def my_images(*args, **kwargs):
     sanitized_keywords = _sanitize_keywords(original_ns.keywords)
     threads = 10 if original_ns.threads is None else original_ns.threads
     path = original_ns.folder
+    images_dir = pathlib.Path(path)
     with ThreadPoolExecutor(max_workers=original_ns.threads) as executor:
         futures = []
         for i, res in enumerate(data, start=1):
@@ -61,16 +63,15 @@ def my_images(*args, **kwargs):
             for future in as_completed(futures):
                 future.result()
                 bar.update(1)
-    if not original_ns.del_duplicates: return
-    print("Checking for duplicates...")
-    images_dir = pathlib.Path(path)
-    for dir_elem_1 in images_dir.iterdir():
-        if not dir_elem_1.is_file(): continue
-        for dir_elem_2 in images_dir.iterdir():
-            if not dir_elem_2.is_file() or dir_elem_1 == dir_elem_2: continue
-            if filecmp.cmp(dir_elem_1, dir_elem_2, shallow=False):
-                dir_elem_2.unlink()
-                print(f"{dir_elem_1} and {dir_elem_2} were the same, removed duplicate")
+    if original_ns.del_duplicates:
+        print("Checking for duplicates...")
+        for dir_elem_1 in images_dir.iterdir():
+            if not dir_elem_1.is_file(): continue
+            for dir_elem_2 in images_dir.iterdir():
+                if not dir_elem_2.is_file() or dir_elem_1 == dir_elem_2: continue
+                if filecmp.cmp(dir_elem_1, dir_elem_2, shallow=False):
+                    dir_elem_2.unlink()
+                    print(f"{dir_elem_1} and {dir_elem_2} were the same, removed duplicate")
 
 @click.option('--cache-file', type=click.Path(), default=None)
 def my_chat(*args, **kwargs):
