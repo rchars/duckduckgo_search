@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from types import SimpleNamespace
 from datetime import datetime
 
+import subprocess
 import filecmp
 import inspect
 import pathlib
@@ -35,7 +36,7 @@ def setup_kwargs(func, *args, **kwargs):
     return argument_bundle
 
 @click.option('--del-duplicates', is_flag=True, default=False)
-# @click.option('--remove-metadata', is_flag=True, default=False)
+@click.option('--remove-metadata', is_flag=True, default=False)
 @click.option('--folder', required=True, type=click.Path(exists=True, file_okay=False, dir_okay=True))
 def my_images(*args, **kwargs):
     argument_bundle = setup_kwargs(DDGS.images, *args, **kwargs)
@@ -63,6 +64,17 @@ def my_images(*args, **kwargs):
             for future in as_completed(futures):
                 future.result()
                 bar.update(1)
+    print("Checking if exiftool is installed")
+    if original_ns.remove_metadata:
+        try:
+            subprocess.run(["exiftool"], capture_output=True)
+        except FileNotFoundError:
+            print("Exiftool is not installed, cannot remove metadata")
+        else:
+            print("Calling exiftool...")
+            for dir_elem in images_dir.iterdir():
+                if not dir_elem.is_file(): continue
+                if subprocess.call(["exiftool", "-all=", "-overwrite_original", "-ext", "*", str(dir_elem)]) != 0: dir_elem.unlink()
     if original_ns.del_duplicates:
         print("Checking for duplicates...")
         for dir_elem_1 in images_dir.iterdir():
@@ -97,7 +109,7 @@ def my_chat(*args, **kwargs):
         def save_action(user_input):
             if user_input.strip():
                 resp_answer = client.chat(keywords=user_input, model=model, timeout=original_ns.timeout)
-                click.secho(f"AI: {resp_answer}", fg="green")
+                click.secho(f"AI: {resp_answer}", fg="bright_yellow")
                 cache = {"vqd": client._chat_vqd, "tokens": client._chat_tokens_count, "messages": client._chat_messages}
                 _save_json(cache_file, cache)
         def loop_action():
@@ -112,5 +124,5 @@ def my_chat(*args, **kwargs):
         def loop_action():
             while True:
                 resp_answer = client.chat(keywords=input_action(), model=model, timeout=original_ns.timeout)
-                click.secho(f"AI: {resp_answer}", fg="green")
+                click.secho(f"AI: {resp_answer}", fg="bright_yellow")
     loop_action()
