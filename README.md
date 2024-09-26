@@ -205,7 +205,7 @@ Use a rotating proxy. Otherwise, use a new proxy with each DDGS or AsyncDDGS ini
 
 Example with [iproyal rotating residential proxies](https://iproyal.com?r=residential_proxies) (🤩 *50% OFF coupon: `DEEDY50`* 🤩):
 ```python3
-ddgs = DDGS(proxy="socks5://user:password@geo.iproyal.com:32325", timeout=20)
+ddgs = DDGS(proxy="socks5h://user:password@geo.iproyal.com:32325", timeout=20)
 results = ddgs.text("something you need", max_results=50)
 ```
 
