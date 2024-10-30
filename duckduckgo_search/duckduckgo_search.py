@@ -44,10 +44,10 @@ class DDGS:
     _impersonates = (
         "chrome_100", "chrome_101", "chrome_104", "chrome_105", "chrome_106", "chrome_107", "chrome_108", 
         "chrome_109", "chrome_114", "chrome_116", "chrome_117", "chrome_118", "chrome_119", "chrome_120", 
-        #"chrome_123", "chrome_124", "chrome_126",
-        "chrome_127", "chrome_128", "chrome_129",
-        "safari_ios_16.5", "safari_ios_17.2", "safari_ios_17.4.1", "safari_15.3", "safari_15.5", "safari_15.6.1", 
-        "safari_16", "safari_16.5", "safari_17.0", "safari_17.2.1", "safari_17.4.1", "safari_17.5", "safari_18", 
+        "chrome_123", "chrome_124", "chrome_126", "chrome_127", "chrome_128", "chrome_129", "chrome_130",
+        "safari_ios_16.5", "safari_ios_17.2", "safari_ios_17.4.1",
+        "safari_15.3", "safari_15.5", "safari_15.6.1", "safari_16", "safari_16.5", 
+        "safari_17.0", "safari_17.2.1", "safari_17.4.1", "safari_17.5", "safari_18", 
         "safari_ipad_18",
         "edge_101", "edge_122", "edge_127",
     )  # fmt: skip
@@ -58,6 +58,7 @@ class DDGS:
         proxy: str | None = None,
         proxies: dict[str, str] | str | None = None,  # deprecated
         timeout: int | None = 10,
+        verify: bool = True,
     ) -> None:
         """Initialize the DDGS object.
 
@@ -66,6 +67,7 @@ class DDGS:
             proxy (str, optional): proxy for the HTTP client, supports http/https/socks5 protocols.
                 example: "http://user:pass@example.com:3128". Defaults to None.
             timeout (int, optional): Timeout value for the HTTP client. Defaults to 10.
+            verify (bool): SSL verification when making the request. Defaults to True.
         """
         self.proxy: str | None = _expand_proxy_tb_alias(proxy)  # replaces "tb" with "socks5://127.0.0.1:9150"
         assert self.proxy is None or isinstance(self.proxy, str), "proxy must be a str"
@@ -82,7 +84,7 @@ class DDGS:
             referer=True,
             impersonate=choice(self._impersonates),
             follow_redirects=False,
-            verify=False,
+            verify=verify,
         )
         self._exception_event = Event()
         self._chat_messages: list[dict[str, str]] = []
