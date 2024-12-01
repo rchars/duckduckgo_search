@@ -45,6 +45,7 @@ class DDGS:
         "chrome_100", "chrome_101", "chrome_104", "chrome_105", "chrome_106", "chrome_107", "chrome_108", 
         "chrome_109", "chrome_114", "chrome_116", "chrome_117", "chrome_118", "chrome_119", "chrome_120", 
         "chrome_123", "chrome_124", "chrome_126", "chrome_127", "chrome_128", "chrome_129", "chrome_130",
+        "chrome_131",
         "safari_ios_16.5", "safari_ios_17.2", "safari_ios_17.4.1",
         "safari_15.3", "safari_15.5", "safari_15.6.1", "safari_16", "safari_16.5", 
         "safari_17.0", "safari_17.2.1", "safari_17.4.1", "safari_17.5", "safari_18", 
@@ -320,8 +321,8 @@ class DDGS:
 
         slist = [0]
         if max_results:
-            max_results = min(max_results, 2023)
-            slist.extend(range(23, max_results, 50))
+            max_results = min(max_results, 190)
+            slist.extend(range(10, max_results, 15))
         try:
             for r in self._executor.map(_text_api_page, slist):
                 results.extend(r)
@@ -410,8 +411,8 @@ class DDGS:
 
         slist = [0]
         if max_results:
-            max_results = min(max_results, 2023)
-            slist.extend(range(23, max_results, 50))
+            max_results = min(max_results, 190)
+            slist.extend(range(10, max_results, 15))
         try:
             for r in self._executor.map(_text_html_page, slist):
                 results.extend(r)
@@ -508,8 +509,8 @@ class DDGS:
 
         slist = [0]
         if max_results:
-            max_results = min(max_results, 2023)
-            slist.extend(range(23, max_results, 50))
+            max_results = min(max_results, 190)
+            slist.extend(range(10, max_results, 15))
         try:
             for r in self._executor.map(_text_lite_page, slist):
                 results.extend(r)
@@ -683,7 +684,7 @@ class DDGS:
 
         slist = [0]
         if max_results:
-            max_results = min(max_results, 400)
+            max_results = min(max_results, 200)
             slist.extend(range(60, max_results, 60))
         try:
             for r in self._executor.map(_videos_page, slist):

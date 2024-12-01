@@ -36,6 +36,15 @@ COLORS = {
 }
 
 
+def _save_data(keywords, data, function_name, filename):
+    filename, ext = filename.rsplit(".", 1) if filename and filename.endswith((".csv", ".json")) else (None, filename)
+    filename = filename if filename else f"{function_name}_{keywords}_{datetime.now():%Y%m%d_%H%M%S}"
+    if ext == "csv":
+        _save_csv(f"{filename}.{ext}", data)
+    elif ext == "json":
+        _save_json(f"{filename}.{ext}", data)
+
+
 def _save_json(jsonfile, data):
     with open(jsonfile, "w", encoding="utf-8") as file:
         file.write(json_dumps(data))
@@ -83,7 +92,7 @@ def _sanitize_keywords(keywords):
 
 def _download_file(url, dir_path, filename, proxy, verify):
     try:
-        resp = primp.Client(proxy=proxy, impersonate="chrome_129", timeout=10, verify=verify).get(url)
+        resp = primp.Client(proxy=proxy, impersonate="chrome_131", timeout=10, verify=verify).get(url)
         if resp.status_code == 200:
             with open(os.path.join(dir_path, filename[:200]), "wb") as file:
                 file.write(resp.content)
@@ -91,16 +100,15 @@ def _download_file(url, dir_path, filename, proxy, verify):
         logger.debug(f"download_file url={url} {type(ex).__name__} {ex}")
 
 
-def _download_results(keywords, results, images=False, proxy=None, threads=None, verify=True):
-    path_type = "images" if images else "text"
-    path = f"{path_type}_{keywords}_{datetime.now():%Y%m%d_%H%M%S}"
+def _download_results(keywords, results, function_name, proxy=None, threads=None, verify=True, pathname=None):
+    path = pathname if pathname else f"{function_name}_{keywords}_{datetime.now():%Y%m%d_%H%M%S}"
     os.makedirs(path, exist_ok=True)
 
     threads = 10 if threads is None else threads
     with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = []
         for i, res in enumerate(results, start=1):
-            url = res["image"] if images else res["href"]
+            url = res["image"] if function_name == "images" else res["href"]
             filename = unquote(url.split("/")[-1].split("?")[0])
             f = executor.submit(_download_file, url, path, f"{i}_{filename}", proxy, verify)
             futures.append(f)
@@ -115,7 +123,7 @@ def _download_results(keywords, results, images=False, proxy=None, threads=None,
 
 @click.group(chain=True)
 def cli():
-    """dukduckgo_search CLI tool"""
+    """duckduckgo_search CLI tool"""
     pass
 
 
@@ -134,7 +142,7 @@ def version():
 
 @cli.command()
 @click.option("-l", "--load", is_flag=True, default=False, help="load the last conversation from the json cache")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-ml", "--multiline", is_flag=True, default=False, help="multi-line input")
 @click.option("-t", "--timeout", default=30, help="timeout value for the HTTP client")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
@@ -184,15 +192,29 @@ def chat(load, proxy, multiline, timeout, verify, model):
 @click.option("-k", "--keywords", required=True, help="text search, keywords for query")
 @click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
 @click.option("-s", "--safesearch", default="moderate", type=click.Choice(["on", "moderate", "off"]))
-@click.option("-t", "--timelimit", default=None, type=click.Choice(["d", "w", "m", "y"]), help="day, week, month, year")
-@click.option("-m", "--max_results", default=20, help="maximum number of results, default=20")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-d", "--download", is_flag=True, default=False, help="download results to 'keywords' folder")
+@click.option("-t", "--timelimit", type=click.Choice(["d", "w", "m", "y"]), help="day, week, month, year")
+@click.option("-m", "--max_results", type=int, help="maximum number of results")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-d", "--download", is_flag=True, default=False, help="download results. -dd to set custom directory")
+@click.option("-dd", "--download-directory", help="Specify custom download directory")
 @click.option("-b", "--backend", default="api", type=click.Choice(["api", "html", "lite"]), help="which backend to use")
 @click.option("-th", "--threads", default=10, help="download threads, default=10")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
-def text(keywords, region, safesearch, timelimit, backend, output, download, threads, max_results, proxy, verify):
+def text(
+    keywords,
+    region,
+    safesearch,
+    timelimit,
+    backend,
+    output,
+    download,
+    download_directory,
+    threads,
+    max_results,
+    proxy,
+    verify,
+):
     """CLI function to perform a text search using DuckDuckGo API."""
     data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).text(
         keywords=keywords,
@@ -203,44 +225,46 @@ def text(keywords, region, safesearch, timelimit, backend, output, download, thr
         max_results=max_results,
     )
     keywords = _sanitize_keywords(keywords)
-    filename = f"text_{keywords}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print" and not download:
-        _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
+    if output:
+        _save_data(keywords, data, "text", filename=output)
     if download:
-        _download_results(keywords, data, proxy=proxy, threads=threads, verify=verify)
+        _download_results(
+            keywords,
+            data,
+            function_name="text",
+            proxy=proxy,
+            threads=threads,
+            verify=verify,
+            pathname=download_directory,
+        )
+    if not output and not download:
+        _print_data(data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="answers search, keywords for query")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def answers(keywords, output, proxy, verify):
     """CLI function to perform a answers search using DuckDuckGo API."""
     data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).answers(keywords=keywords)
-    filename = f"answers_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="answers", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="keywords for query")
 @click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
 @click.option("-s", "--safesearch", default="moderate", type=click.Choice(["on", "moderate", "off"]))
-@click.option("-t", "--timelimit", default=None, type=click.Choice(["Day", "Week", "Month", "Year"]))
-@click.option("-size", "--size", default=None, type=click.Choice(["Small", "Medium", "Large", "Wallpaper"]))
+@click.option("-t", "--timelimit", type=click.Choice(["Day", "Week", "Month", "Year"]))
+@click.option("-size", "--size", type=click.Choice(["Small", "Medium", "Large", "Wallpaper"]))
 @click.option(
     "-c",
     "--color",
-    default=None,
     type=click.Choice(
         [
             "color",
@@ -260,21 +284,19 @@ def answers(keywords, output, proxy, verify):
         ]
     ),
 )
-@click.option(
-    "-type", "--type_image", default=None, type=click.Choice(["photo", "clipart", "gif", "transparent", "line"])
-)
-@click.option("-l", "--layout", default=None, type=click.Choice(["Square", "Tall", "Wide"]))
+@click.option("-type", "--type_image", type=click.Choice(["photo", "clipart", "gif", "transparent", "line"]))
+@click.option("-l", "--layout", type=click.Choice(["Square", "Tall", "Wide"]))
 @click.option(
     "-lic",
     "--license_image",
-    default=None,
-    type=click.Choice(["any", "Public", "Share", "Modify", "ModifyCommercially"]),
+    type=click.Choice(["any", "Public", "Share", "ShareCommercially", "Modify", "ModifyCommercially"]),
 )
-@click.option("-m", "--max_results", default=90, help="maximum number of results, default=90")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-d", "--download", is_flag=True, default=False, help="download and save images to 'keywords' folder")
+@click.option("-m", "--max_results", type=int, help="maximum number of results")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-d", "--download", is_flag=True, default=False, help="download results. -dd to set custom directory")
+@click.option("-dd", "--download-directory", help="Specify custom download directory")
 @click.option("-th", "--threads", default=10, help="download threads, default=10")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def images(
     keywords,
@@ -287,6 +309,7 @@ def images(
     layout,
     license_image,
     download,
+    download_directory,
     threads,
     max_results,
     output,
@@ -307,28 +330,33 @@ def images(
         max_results=max_results,
     )
     keywords = _sanitize_keywords(keywords)
-    filename = f"images_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print" and not download:
-        _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
+    if output:
+        _save_data(keywords, data, function_name="images", filename=output)
     if download:
-        _download_results(keywords, data, images=True, proxy=proxy, threads=threads, verify=verify)
+        _download_results(
+            keywords,
+            data,
+            function_name="images",
+            proxy=proxy,
+            threads=threads,
+            verify=verify,
+            pathname=download_directory,
+        )
+    if not output and not download:
+        _print_data(data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="keywords for query")
 @click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
 @click.option("-s", "--safesearch", default="moderate", type=click.Choice(["on", "moderate", "off"]))
-@click.option("-t", "--timelimit", default=None, type=click.Choice(["d", "w", "m"]), help="day, week, month")
-@click.option("-res", "--resolution", default=None, type=click.Choice(["high", "standart"]))
-@click.option("-d", "--duration", default=None, type=click.Choice(["short", "medium", "long"]))
-@click.option("-lic", "--license_videos", default=None, type=click.Choice(["creativeCommon", "youtube"]))
-@click.option("-m", "--max_results", default=50, help="maximum number of results, default=50")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-t", "--timelimit", type=click.Choice(["d", "w", "m"]), help="day, week, month")
+@click.option("-res", "--resolution", type=click.Choice(["high", "standart"]))
+@click.option("-d", "--duration", type=click.Choice(["short", "medium", "long"]))
+@click.option("-lic", "--license_videos", type=click.Choice(["creativeCommon", "youtube"]))
+@click.option("-m", "--max_results", type=int, help="maximum number of results")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def videos(
     keywords, region, safesearch, timelimit, resolution, duration, license_videos, max_results, output, proxy, verify
@@ -344,53 +372,49 @@ def videos(
         license_videos=license_videos,
         max_results=max_results,
     )
-    filename = f"videos_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="videos", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="keywords for query")
 @click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
 @click.option("-s", "--safesearch", default="moderate", type=click.Choice(["on", "moderate", "off"]))
-@click.option("-t", "--timelimit", default=None, type=click.Choice(["d", "w", "m", "y"]), help="day, week, month, year")
-@click.option("-m", "--max_results", default=25, help="maximum number of results, default=25")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-t", "--timelimit", type=click.Choice(["d", "w", "m", "y"]), help="day, week, month, year")
+@click.option("-m", "--max_results", type=int, help="maximum number of results")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def news(keywords, region, safesearch, timelimit, max_results, output, proxy, verify):
     """CLI function to perform a news search using DuckDuckGo API."""
     data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).news(
         keywords=keywords, region=region, safesearch=safesearch, timelimit=timelimit, max_results=max_results
     )
-    filename = f"news_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="news", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="keywords for query")
-@click.option("-p", "--place", default=None, help="simplified search - if set, the other parameters are not used")
-@click.option("-s", "--street", default=None, help="house number/street")
-@click.option("-c", "--city", default=None, help="city of search")
-@click.option("-county", "--county", default=None, help="county of search")
-@click.option("-state", "--state", default=None, help="state of search")
-@click.option("-country", "--country", default=None, help="country of search")
-@click.option("-post", "--postalcode", default=None, help="postalcode of search")
-@click.option("-lat", "--latitude", default=None, help="""if lat and long are set, the other params are not used""")
-@click.option("-lon", "--longitude", default=None, help="""if lat and long are set, the other params are not used""")
+@click.option("-p", "--place", help="simplified search - if set, the other parameters are not used")
+@click.option("-s", "--street", help="house number/street")
+@click.option("-c", "--city", help="city of search")
+@click.option("-county", "--county", help="county of search")
+@click.option("-state", "--state", help="state of search")
+@click.option("-country", "--country", help="country of search")
+@click.option("-post", "--postalcode", help="postalcode of search")
+@click.option("-lat", "--latitude", help="""if lat and long are set, the other params are not used""")
+@click.option("-lon", "--longitude", help="""if lat and long are set, the other params are not used""")
 @click.option("-r", "--radius", default=0, help="expand the search square by the distance in kilometers")
-@click.option("-m", "--max_results", default=50, help="number of results, default=50")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-proxy", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-m", "--max_results", type=int, help="maximum number of results")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-proxy", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def maps(
     keywords,
@@ -424,50 +448,44 @@ def maps(
         radius=radius,
         max_results=max_results,
     )
-    filename = f"maps_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="maps", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="text for translation")
 @click.option("-f", "--from_", help="What language to translate from (defaults automatically)")
 @click.option("-t", "--to", default="en", help="de, ru, fr, etc. What language to translate, defaults='en'")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def translate(keywords, from_, to, output, proxy, verify):
     """CLI function to perform translate using DuckDuckGo API."""
     data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).translate(keywords=keywords, from_=from_, to=to)
-    filename = f"translate_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="translate", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 @cli.command()
 @click.option("-k", "--keywords", required=True, help="keywords for query")
 @click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
-@click.option("-o", "--output", default="print", help="csv, json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", default=None, help="the proxy to send requests, example: socks5://127.0.0.1:9150")
+@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
+@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
 def suggestions(keywords, region, output, proxy, verify):
     """CLI function to perform a suggestions search using DuckDuckGo API."""
     data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).suggestions(keywords=keywords, region=region)
-    filename = f"suggestions_{_sanitize_keywords(keywords)}_{datetime.now():%Y%m%d_%H%M%S}"
-    if output == "print":
+    keywords = _sanitize_keywords(keywords)
+    if output:
+        _save_data(keywords, data, function_name="suggestions", filename=output)
+    else:
         _print_data(data)
-    elif output == "csv":
-        _save_csv(f"{filename}.csv", data)
-    elif output == "json":
-        _save_json(f"{filename}.json", data)
 
 
 if __name__ == "__main__":

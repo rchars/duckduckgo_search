@@ -6,7 +6,7 @@ from duckduckgo_search import DDGS
 
 @pytest.fixture(autouse=True)
 def pause_between_tests():
-    time.sleep(0.5)
+    time.sleep(1)
 
 
 def test_context_manager():
@@ -22,18 +22,18 @@ def test_chat(model):
 
 
 def test_text():
-    results = DDGS().text("cat", safesearch="off", timelimit="m", max_results=30)
-    assert 27 <= len(results) <= 30
+    results = DDGS().text("cat", safesearch="off", timelimit="m", max_results=20)
+    assert 15 <= len(results) <= 20
 
 
 def test_text_html():
-    results = DDGS().text("eagle", backend="html", max_results=30)
-    assert 27 <= len(results) <= 30
+    results = DDGS().text("eagle", backend="html", max_results=20)
+    assert 15 <= len(results) <= 20
 
 
 def test_text_lite():
-    results = DDGS().text("dog", backend="lite", max_results=30)
-    assert 27 <= len(results) <= 30
+    results = DDGS().text("dog", backend="lite", max_results=20)
+    assert 15 <= len(results) <= 20
 
 
 def test_images():
