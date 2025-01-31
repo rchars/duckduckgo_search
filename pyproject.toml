@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "duckduckgo_search"
 description = "Search for words, documents, images, news, maps and text translation using the DuckDuckGo.com search engine."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {text = "MIT License"}
 keywords = ["python", "duckduckgo"]
 authors = [
@@ -18,7 +18,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -29,8 +28,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "click>=8.1.7",
-    "primp>=0.8.1",
+    "click>=8.1.8",
+    "primp>=0.11.0",
+    "lxml>=5.3.0",
 ]
 dynamic = ["version"]
 
@@ -44,14 +44,11 @@ ddgs = "duckduckgo_search.cli:safe_entry_point"
 version = {attr = "duckduckgo_search.version.__version__"}
 
 [project.optional-dependencies]
-lxml = [
-    "lxml>=5.2.2",
-]
 dev = [
-    "mypy>=1.11.1",
-    "pytest>=8.3.1",
-    "pytest-asyncio>=0.23.8",
-    "ruff>=0.6.1",
+    "mypy>=1.14.1",
+    "pytest>=8.3.4",
+    "pytest-dependency>=0.6.0",
+    "ruff>=0.9.2",
 ]
 
 [tool.ruff]
@@ -69,6 +66,6 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.9"
 strict = true
 exclude = ['cli\.py$', '__main__\.py$', "tests/", "build/"]

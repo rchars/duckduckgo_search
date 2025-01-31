@@ -149,7 +149,7 @@ def version():
 @click.option(
     "-m",
     "--model",
-    prompt="""DuckDuckGo AI chat. Choose a model: 
+    prompt="""DuckDuckGo AI chat. Choose a model:
 [1]: gpt-4o-mini
 [2]: claude-3-haiku
 [3]: llama-3.1-70b
@@ -173,7 +173,7 @@ def chat(load, proxy, multiline, timeout, verify, model):
             client._chat_tokens_count = cache.get("tokens", 0)
 
     while True:
-        print(f"{'-'*78}\nYou[{model=} tokens={client._chat_tokens_count}]: ", end="")
+        print(f"{'-' * 78}\nYou[{model=} tokens={client._chat_tokens_count}]: ", end="")
         if multiline:
             print(f"""[multiline, send message: ctrl+{"Z" if sys.platform == "win32" else "D"}]""")
             user_input = sys.stdin.read()
@@ -197,7 +197,7 @@ def chat(load, proxy, multiline, timeout, verify, model):
 @click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
 @click.option("-d", "--download", is_flag=True, default=False, help="download results. -dd to set custom directory")
 @click.option("-dd", "--download-directory", help="Specify custom download directory")
-@click.option("-b", "--backend", default="api", type=click.Choice(["api", "html", "lite"]), help="which backend to use")
+@click.option("-b", "--backend", default="auto", type=click.Choice(["auto", "html", "lite"]))
 @click.option("-th", "--threads", default=10, help="download threads, default=10")
 @click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
 @click.option("-v", "--verify", default=True, help="verify SSL when making the request")
@@ -238,21 +238,6 @@ def text(
             pathname=download_directory,
         )
     if not output and not download:
-        _print_data(data)
-
-
-@cli.command()
-@click.option("-k", "--keywords", required=True, help="answers search, keywords for query")
-@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
-@click.option("-v", "--verify", default=True, help="verify SSL when making the request")
-def answers(keywords, output, proxy, verify):
-    """CLI function to perform a answers search using DuckDuckGo API."""
-    data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).answers(keywords=keywords)
-    keywords = _sanitize_keywords(keywords)
-    if output:
-        _save_data(keywords, data, function_name="answers", filename=output)
-    else:
         _print_data(data)
 
 
@@ -396,94 +381,6 @@ def news(keywords, region, safesearch, timelimit, max_results, output, proxy, ve
     keywords = _sanitize_keywords(keywords)
     if output:
         _save_data(keywords, data, function_name="news", filename=output)
-    else:
-        _print_data(data)
-
-
-@cli.command()
-@click.option("-k", "--keywords", required=True, help="keywords for query")
-@click.option("-p", "--place", help="simplified search - if set, the other parameters are not used")
-@click.option("-s", "--street", help="house number/street")
-@click.option("-c", "--city", help="city of search")
-@click.option("-county", "--county", help="county of search")
-@click.option("-state", "--state", help="state of search")
-@click.option("-country", "--country", help="country of search")
-@click.option("-post", "--postalcode", help="postalcode of search")
-@click.option("-lat", "--latitude", help="""if lat and long are set, the other params are not used""")
-@click.option("-lon", "--longitude", help="""if lat and long are set, the other params are not used""")
-@click.option("-r", "--radius", default=0, help="expand the search square by the distance in kilometers")
-@click.option("-m", "--max_results", type=int, help="maximum number of results")
-@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
-@click.option("-proxy", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
-@click.option("-v", "--verify", default=True, help="verify SSL when making the request")
-def maps(
-    keywords,
-    place,
-    street,
-    city,
-    county,
-    state,
-    country,
-    postalcode,
-    latitude,
-    longitude,
-    radius,
-    max_results,
-    output,
-    proxy,
-    verify,
-):
-    """CLI function to perform a maps search using DuckDuckGo API."""
-    data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).maps(
-        keywords=keywords,
-        place=place,
-        street=street,
-        city=city,
-        county=county,
-        state=state,
-        country=country,
-        postalcode=postalcode,
-        latitude=latitude,
-        longitude=longitude,
-        radius=radius,
-        max_results=max_results,
-    )
-    keywords = _sanitize_keywords(keywords)
-    if output:
-        _save_data(keywords, data, function_name="maps", filename=output)
-    else:
-        _print_data(data)
-
-
-@cli.command()
-@click.option("-k", "--keywords", required=True, help="text for translation")
-@click.option("-f", "--from_", help="What language to translate from (defaults automatically)")
-@click.option("-t", "--to", default="en", help="de, ru, fr, etc. What language to translate, defaults='en'")
-@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
-@click.option("-v", "--verify", default=True, help="verify SSL when making the request")
-def translate(keywords, from_, to, output, proxy, verify):
-    """CLI function to perform translate using DuckDuckGo API."""
-    data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).translate(keywords=keywords, from_=from_, to=to)
-    keywords = _sanitize_keywords(keywords)
-    if output:
-        _save_data(keywords, data, function_name="translate", filename=output)
-    else:
-        _print_data(data)
-
-
-@cli.command()
-@click.option("-k", "--keywords", required=True, help="keywords for query")
-@click.option("-r", "--region", default="wt-wt", help="wt-wt, us-en, ru-ru, etc. -region https://duckduckgo.com/params")
-@click.option("-o", "--output", help="csv, json or filename.csv|json (save the results to a csv or json file)")
-@click.option("-p", "--proxy", help="the proxy to send requests, example: socks5://127.0.0.1:9150")
-@click.option("-v", "--verify", default=True, help="verify SSL when making the request")
-def suggestions(keywords, region, output, proxy, verify):
-    """CLI function to perform a suggestions search using DuckDuckGo API."""
-    data = DDGS(proxy=_expand_proxy_tb_alias(proxy), verify=verify).suggestions(keywords=keywords, region=region)
-    keywords = _sanitize_keywords(keywords)
-    if output:
-        _save_data(keywords, data, function_name="suggestions", filename=output)
     else:
         _print_data(data)
 
