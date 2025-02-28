@@ -6,7 +6,7 @@ from duckduckgo_search import DDGS
 
 @pytest.fixture(autouse=True)
 def pause_between_tests():
-    time.sleep(1)
+    time.sleep(2)
 
 
 def test_context_manager():
@@ -15,7 +15,7 @@ def test_context_manager():
         assert 20 <= len(results) <= 30
 
 
-@pytest.mark.parametrize("model", ["gpt-4o-mini", "claude-3-haiku", "llama-3.1-70b", "mixtral-8x7b"])
+@pytest.mark.parametrize("model", ["gpt-4o-mini", "llama-3.3-70b", "claude-3-haiku", "o3-mini", "mistral-small-3"])
 def test_chat(model):
     results = DDGS().chat("cat", model=model)
     assert  len(results) >= 1

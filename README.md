@@ -33,7 +33,7 @@ CLI examples:
 # AI chat
 ddgs chat
 # text search
-ddgs text -k "Assyrian siege of Jerusalem"
+ddgs text -k "China is a global threat"
 # find and download pdf files via proxy
 ddgs text -k "Economics in one lesson filetype:pdf" -r wt-wt -m 50 -p https://1.2.3.4:1234 -d -dd economics_reading
 # using Tor Browser as a proxy (`tb` is an alias for `socks5://127.0.0.1:9150`)
@@ -213,8 +213,8 @@ def chat(self, keywords: str, model: str = "gpt-4o-mini", timeout: int = 30) -> 
 
     Args:
         keywords (str): The initial message or question to send to the AI.
-        model (str): The model to use: "gpt-4o-mini", "claude-3-haiku", "llama-3.1-70b", "mixtral-8x7b".
-            Defaults to "gpt-4o-mini".
+        model (str): The model to use: "gpt-4o-mini", "llama-3.3-70b", "claude-3-haiku",
+            "o3-mini", "mixtral-8x7b". Defaults to "gpt-4o-mini".
         timeout (int): Timeout value for the HTTP client. Defaults to 30.
 
     Returns:
@@ -224,6 +224,10 @@ def chat(self, keywords: str, model: str = "gpt-4o-mini", timeout: int = 30) -> 
 ***Example***
 ```python
 results = DDGS().chat("summarize Daniel Defoe's The Consolidator", model='claude-3-haiku')
+
+# There is also `chat_yield` generator which yields chunks while a response is being processed:
+for x in DDGS().chat_yield("How Do Airplanes Fly", model='llama-3.3-70b'):
+    print(x)
 ```
 
 [Go To TOP](#TOP)
